@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LSPosed Template</string>
+    <string-array name="xposedscope">
+        <!-- Add your target package here, e.g: -->
+        <!-- <item>com.example.targetapp</item> -->
+    </string-array>
+</resources>
