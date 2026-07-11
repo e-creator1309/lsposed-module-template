@@ -1,21 +1,41 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.nova.sigspoofing'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.nova.sigspoofing"
+        minSdk 28          // Android 9 (P) — minimum for SigningInfo
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
     }
-    dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.2'
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lint {
+        abortOnError false
     }
 }
 
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url 'https://api.xposed.info/' }
-    }
+repositories {
+    maven { url 'https://api.xposed.info/' }
 }
 
-tasks.register('clean', Delete) {
-    delete rootProject.buildDir
+dependencies {
+    compileOnly 'de.robv.android.xposed:api:82'
 }
