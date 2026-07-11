@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">LSPosed Template</string>
+    <string name="app_name">MT Manager Unlocker</string>
     <string-array name="xposedscope">
-        <!-- Add your target package here, e.g: -->
-        <!-- <item>com.example.targetapp</item> -->
+        <item>bin.mt.plus</item>
     </string-array>
 </resources>
