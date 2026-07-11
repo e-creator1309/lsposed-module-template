@@ -1,3 +1,1 @@
-# List your hook entry-point classes here, one per line.
-# Example:
-# com.example.lsposed.MainHook
+com.example.lsposed.MainHook
