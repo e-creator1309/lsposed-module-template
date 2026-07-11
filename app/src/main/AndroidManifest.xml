@@ -12,7 +12,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="My LSPosed Module" />
+            android:value="Unlocks MT Manager VIP features via SharedPrefs + custom pref hooks" />
         <meta-data
             android:name="xposedminversion"
             android:value="93" />
