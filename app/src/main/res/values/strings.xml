@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Nova Sig Spoof</string>
-
-    <!--
-        Scope: android (system_server) only.
-        Hooking PackageManagerService there intercepts ALL Binder callers,
-        so every app gets spoofed results without needing per-app injection.
-    -->
-    <string-array name="xposedscope">
-        <item>android</item>
-    </string-array>
+    <string name="subtitle_rules">Apps below will report the signature you assigned them. No manifest editing required.</string>
+    <string name="empty_state">No spoof rules yet. Tap + to make an app report another app\'s signature.</string>
+    <string name="add_rule">Add spoof rule</string>
+    <string name="delete_rule">Delete rule</string>
+    <string name="label_target_app">App to spoof</string>
+    <string name="label_certificate_source">Signature to report</string>
+    <string name="option_clone_from_app">Clone the real signature from an installed app</string>
+    <string name="option_paste_manual">Paste a Base64 DER certificate</string>
+    <string name="hint_manual_cert">Base64-encoded DER certificate</string>
+    <string name="dialog_title_add_rule">New spoof rule</string>
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="error_invalid_cert">That doesn\'t look like a valid Base64 certificate.</string>
+    <string name="error_no_apps">No source app selected.</string>
 </resources>

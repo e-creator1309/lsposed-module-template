@@ -10,6 +10,9 @@ import android.os.Bundle;
 import android.util.ArraySet;
 import android.util.Base64;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
 import java.security.cert.Certificate;
@@ -18,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -51,6 +55,12 @@ public class SigSpoofHook implements IXposedHookLoadPackage {
 
     /** Prevents re-entrancy when we do a secondary getApplicationInfo() call. */
     static final ThreadLocal<Boolean> sInHook = ThreadLocal.withInitial(() -> false);
+
+    /** Companion app package + prefs file where the UI writes spoof rules. */
+    static final String COMPANION_PKG = "com.nova.sigspoofing";
+    static final String COMPANION_PREFS = "spoof_config";
+
+    static volatile XSharedPreferences sPrefs;
 
     // ─────────────────────────────────────────────────────────────────────────
     @Override
@@ -157,9 +167,55 @@ public class SigSpoofHook implements IXposedHookLoadPackage {
         applySpoof(pi, cert);
     }
 
+    /** Lazily creates (and hot-reloads) the XSharedPreferences view onto the companion app's config. */
+    static XSharedPreferences companionPrefs() {
+        XSharedPreferences prefs = sPrefs;
+        if (prefs == null) {
+            synchronized (SigSpoofHook.class) {
+                prefs = sPrefs;
+                if (prefs == null) {
+                    prefs = new XSharedPreferences(COMPANION_PKG, COMPANION_PREFS);
+                    sPrefs = prefs;
+                }
+            }
+        }
+        if (prefs.hasFileChanged()) {
+            prefs.reload();
+            // Rules changed on disk — forget every previous verdict so toggles/edits take effect.
+            sCache.clear();
+        }
+        return prefs;
+    }
+
     /**
-     * Returns the DER bytes declared in fake-signature meta-data, NO_SPOOF if
-     * the package has no such declaration, or null on resolution error.
+     * Looks up an enabled rule for [pkg] written by the companion app's UI.
+     * Returns null if there's no such rule (caller should fall back to manifest meta-data).
+     */
+    static byte[] resolveFromCompanionConfig(String pkg) {
+        try {
+            String json = companionPrefs().getString("rules_json", null);
+            if (json == null) return null;
+
+            JSONArray rules = new JSONArray(json);
+            for (int i = 0; i < rules.length(); i++) {
+                JSONObject rule = rules.getJSONObject(i);
+                if (!pkg.equals(rule.optString("packageName"))) continue;
+                if (!rule.optBoolean("enabled", true)) return null;
+
+                String b64 = rule.optString("certBase64", null);
+                if (b64 == null || b64.isEmpty()) return null;
+                return Base64.decode(b64, Base64.DEFAULT);
+            }
+        } catch (Throwable t) {
+            XposedBridge.log(TAG + ": companion config read failed: " + t);
+        }
+        return null;
+    }
+
+    /**
+     * Returns the DER bytes to spoof for this package, or NO_SPOOF if nothing applies.
+     * Companion app rules (configured via the UI) take priority; manifest
+     * fake-signature meta-data is kept as a fallback for manual setups.
      */
     static byte[] resolveCert(PackageInfo pi, PackageManager pm) {
         String pkg = pi.packageName;
@@ -167,6 +223,13 @@ public class SigSpoofHook implements IXposedHookLoadPackage {
         // Fast path
         byte[] hit = sCache.get(pkg);
         if (hit != null) return hit;
+
+        byte[] fromCompanion = resolveFromCompanionConfig(pkg);
+        if (fromCompanion != null) {
+            sCache.put(pkg, fromCompanion);
+            XposedBridge.log(TAG + ": registered spoof for " + pkg + " (companion app rule)");
+            return fromCompanion;
+        }
 
         // Try meta-data already present in the PackageInfo (only when GET_META_DATA was requested)
         Bundle meta = (pi.applicationInfo != null) ? pi.applicationInfo.metaData : null;

@@ -8,9 +8,32 @@ LSPosed module that spoofs app signatures system-wide via a `PackageManagerServi
 - Because all apps call PM via Binder → this single hook covers every caller on the device
 - Works alongside **Shamiko** / **Zygisk-Assistant** (those hide root; this spoofs signatures)
 
-## Enabling spoofing for an app
+## Enabling spoofing for an app (companion app — recommended)
 
-Add a `<meta-data>` tag to the `<application>` block in the target APK's `AndroidManifest.xml`:
+Nova Sig Spoof now ships with a companion app (`MainActivity`) so you don't have to edit
+any manifests by hand:
+
+1. Open **Nova Sig Spoof** from your app drawer.
+2. Tap **+**, pick the app you want to spoof.
+3. Choose how to get a signature:
+   - **Clone from an installed app** — picks another app already on the device and copies
+     its real signing certificate (e.g. pick a real Google app to make MicroG look signed
+     by Google).
+   - **Paste a Base64 DER certificate** — for certs you extracted yourself.
+4. Save. Toggle the switch on any rule to enable/disable it, or delete it with the trash icon.
+
+Rules take effect the next time the target app's package info is queried — no reboot needed
+for most apps, though some callers cache `PackageInfo` and may need a restart.
+
+Under the hood, the companion app writes rules to its own `SharedPreferences` and relaxes
+that file's permissions so the LSPosed hook (running inside `system_server`, a different
+UID) can read it via `XSharedPreferences`. This is the standard mechanism Xposed provides
+for module ↔ companion-app configuration.
+
+## Enabling spoofing for an app (manual, legacy)
+
+You can still declare a fake signature directly in a target app's manifest — the hook
+checks the companion app's rules first, then falls back to this:
 
 ```xml
 <meta-data
@@ -30,9 +53,8 @@ unzip -p RealApp.apk META-INF/*.RSA | openssl pkcs7 -inform DER -print_certs | \
 
 ### Example: MicroG pretending to be Google
 
-Add the GMS cert (Google's release key) to MicroG's manifest.  
-The Base64 value for Google's AOSP test cert is already hardcoded in FakeGApps — use that
-if you're only targeting MicroG compatibility.
+Easiest path: install a real Google app, then in the companion app add a rule for MicroG
+and choose "clone from an installed app" → that Google app. No manual cert extraction needed.
 
 ## Supported Android versions
 
