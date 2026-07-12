@@ -1,12 +1,12 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace 'com.example.lsposed'
+    namespace 'com.nova.sigspoofing'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.lsposed"
-        minSdk 28
+        applicationId "com.nova.sigspoofing"
+        minSdk 28          // Android 9 (P) — minimum for SigningInfo
         targetSdk 34
         versionCode 1
         versionName "1.0.0"

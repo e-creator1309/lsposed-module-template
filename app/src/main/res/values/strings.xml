@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MT Manager Unlocker</string>
+    <string name="app_name">Nova Sig Spoof</string>
+
+    <!--
+        Scope: android (system_server) only.
+        Hooking PackageManagerService there intercepts ALL Binder callers,
+        so every app gets spoofed results without needing per-app injection.
+    -->
     <string-array name="xposedscope">
-        <item>bin.mt.plus</item>
+        <item>android</item>
     </string-array>
 </resources>
