@@ -1,2 +1,21 @@
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    // FAIL_ON_PROJECT_REPOS: repositories must be declared here, not in module build files.
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        // Legacy Xposed API jar
+        maven { url 'https://api.xposed.info/' }
+    }
+}
+
 rootProject.name = "LSposedTemplate"
 include ':app'
