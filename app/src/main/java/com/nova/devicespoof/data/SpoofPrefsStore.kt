@@ -82,11 +82,11 @@ object SpoofPrefsStore {
     }
 
     private fun makeWorldReadable(context: Context) {
-        try {
-            val dataDir = File(context.applicationInfo.dataDir)
-            val prefsDir = File(dataDir, "shared_prefs")
-            val prefsFile = File(prefsDir, "$PREFS_NAME.xml")
+        val dataDir = File(context.applicationInfo.dataDir)
+        val prefsDir = File(dataDir, "shared_prefs")
+        val prefsFile = File(prefsDir, "$PREFS_NAME.xml")
 
+        try {
             // Directories need the executable bit for "others" so the target app's process
             // can traverse into them; the file itself needs to be readable.
             dataDir.setExecutable(true, false)
@@ -95,6 +95,35 @@ object SpoofPrefsStore {
             prefsFile.setReadable(true, false)
         } catch (t: Throwable) {
             Log.w(TAG, "Failed to relax prefs file permissions", t)
+        }
+
+        // On stock/enforcing SELinux (every Samsung/OneUI device), the chmod above only
+        // relaxes Unix permissions (DAC). It does NOT let another app's process read this
+        // file, because SELinux (MAC) separately denies one app's process from opening
+        // another app's app_data_file -- regardless of chmod bits -- due to per-app MLS
+        // categories. Root is required to relabel past that; without it, XSharedPreferences
+        // reads from the target process reliably come back null even though this file looks
+        // "world readable" from adb/a root shell. This device has root (KernelSU/Magisk), so
+        // ask for it and relabel; silently no-op if the companion app isn't granted root.
+        relaxSelinuxWithRoot(dataDir, prefsDir, prefsFile)
+    }
+
+    private fun relaxSelinuxWithRoot(dataDir: File, prefsDir: File, prefsFile: File) {
+        try {
+            val cmd = "chmod 711 '${dataDir.absolutePath}'; " +
+                "chmod 755 '${prefsDir.absolutePath}'; " +
+                "chmod 644 '${prefsFile.absolutePath}'; " +
+                "chcon u:object_r:app_data_file:s0 '${prefsDir.absolutePath}' 2>/dev/null; " +
+                "chcon u:object_r:app_data_file:s0 '${prefsFile.absolutePath}' 2>/dev/null"
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                Log.w(TAG, "Root permission/SELinux relabel exited $exitCode -- companion app may not be granted root")
+            }
+        } catch (t: Throwable) {
+            // No root binary, or root access wasn't granted to this app. The plain chmod
+            // above still applies; whether that's enough depends on the ROM's SELinux policy.
+            Log.w(TAG, "Could not run root command to relax SELinux label", t)
         }
     }
 }
