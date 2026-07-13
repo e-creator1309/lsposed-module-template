@@ -59,7 +59,14 @@ public class DeviceSpoofHook implements IXposedHookLoadPackage {
         if (COMPANION_PKG.equals(lpparam.packageName)) return;
         if ("android".equals(lpparam.packageName)) return;
 
-        if (!isEnabledForPackage(lpparam.packageName)) return;
+        // Always log that we were even asked about this package, before the enable check --
+        // this is the single most useful line for diagnosing "nothing happens": if you don't
+        // see this at all for a target app, LSPosed isn't injecting into it (check module
+        // scope / Zygisk denylist); if you see it with enabled=false, the companion app's
+        // saved rule doesn't match this package or wasn't saved.
+        boolean enabled = isEnabledForPackage(lpparam.packageName);
+        XposedBridge.log(TAG + ": handleLoadPackage " + lpparam.packageName + " enabled=" + enabled);
+        if (!enabled) return;
 
         XposedBridge.log(TAG + ": profile enabled for " + lpparam.packageName + ", applying spoof");
 
@@ -102,7 +109,12 @@ public class DeviceSpoofHook implements IXposedHookLoadPackage {
         boolean enabled = false;
         try {
             String json = companionPrefs().getString("rules_json", null);
-            if (json != null) {
+            if (json == null) {
+                // Either "Choose apps" was never saved yet, or XSharedPreferences couldn't
+                // read the companion app's prefs file at all (permissions/SELinux). Both look
+                // identical from here, so this line alone tells you *something* is missing.
+                XposedBridge.log(TAG + ": rules_json is null (no profile saved yet, or prefs unreadable)");
+            } else {
                 JSONArray rules = new JSONArray(json);
                 for (int i = 0; i < rules.length(); i++) {
                     JSONObject rule = rules.getJSONObject(i);
