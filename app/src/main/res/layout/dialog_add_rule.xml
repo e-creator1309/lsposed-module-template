@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_target_app"
+            android:textColor="@color/nova_text_secondary"
+            android:textSize="12sp" />
+
+        <Spinner
+            android:id="@+id/targetAppSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="20dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/label_certificate_source"
+            android:textColor="@color/nova_text_secondary"
+            android:textSize="12sp" />
+
+        <RadioGroup
+            android:id="@+id/certSourceGroup"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <RadioButton
+                android:id="@+id/cloneFromAppOption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:text="@string/option_clone_from_app"
+                android:textColor="@color/nova_text_primary" />
+
+            <RadioButton
+                android:id="@+id/pasteManualOption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/option_paste_manual"
+                android:textColor="@color/nova_text_primary" />
+        </RadioGroup>
+
+        <Spinner
+            android:id="@+id/sourceAppSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/manualCertInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="top"
+            android:hint="@string/hint_manual_cert"
+            android:inputType="textMultiLine"
+            android:minLines="3"
+            android:textColor="@color/nova_text_primary"
+            android:textColorHint="@color/nova_text_secondary"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</ScrollView>
