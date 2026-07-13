@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- LSPosed scope: this module only needs to run inside system_server ("android"). -->
-    <string-array name="xposedscope">
-        <item>android</item>
-    </string-array>
-</resources>

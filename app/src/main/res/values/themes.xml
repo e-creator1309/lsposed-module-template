@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.NovaSigSpoof" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+    <style name="Theme.NovaDeviceSpoof" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="colorPrimary">@color/nova_accent</item>
         <item name="colorPrimaryDark">@color/nova_accent_dark</item>
         <item name="colorAccent">@color/nova_accent</item>

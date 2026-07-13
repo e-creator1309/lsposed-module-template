@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.nova.sigspoofing">
+    package="com.nova.devicespoof">
 
-    <!-- Needed so the companion app can list every installed app to spoof. -->
+    <!-- Needed so the companion app can list every installed app to target. -->
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -12,10 +12,11 @@
         android:allowBackup="false"
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="@string/app_name"
-        android:theme="@style/Theme.NovaSigSpoof"
+        android:theme="@style/Theme.NovaDeviceSpoof"
         android:supportsRtl="true">
 
-        <!-- Companion UI: configure which apps get spoofed and with what certificate. -->
+        <!-- Companion UI: paste a build.prop / floating_features.xml profile and pick which
+             apps should see it. Nothing here touches the real device files. -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true">
@@ -25,19 +26,18 @@
             </intent-filter>
         </activity>
 
-        <!-- LSPosed module declarations -->
+        <!-- LSPosed module declarations. No xposedscope on purpose: this module is meant to
+             be usable against ANY app, so scope is chosen entirely inside LSPosed Manager +
+             this module's own per-app rule list, not hard-coded here. -->
         <meta-data
             android:name="xposedmodule"
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Hooks PackageManagerService to spoof app signatures. Configure targets from the companion app." />
+            android:value="Per-app build.prop and floating-feature spoofing, configured from the companion app. No system file edits, no reboot required." />
         <meta-data
             android:name="xposedminversion"
             android:value="93" />
-        <meta-data
-            android:name="xposedscope"
-            android:resource="@array/xposedscope" />
 
     </application>
 

@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Nova Sig Spoof</string>
-    <string name="subtitle_rules">Apps below will report the signature you assigned them. No manifest editing required.</string>
-    <string name="empty_state">No spoof rules yet. Tap + to make an app report another app\'s signature.</string>
-    <string name="add_rule">Add spoof rule</string>
-    <string name="delete_rule">Delete rule</string>
-    <string name="label_target_app">App to spoof</string>
-    <string name="label_certificate_source">Signature to report</string>
-    <string name="option_clone_from_app">Clone the real signature from an installed app</string>
-    <string name="option_paste_manual">Paste a Base64 DER certificate</string>
-    <string name="hint_manual_cert">Base64-encoded DER certificate</string>
-    <string name="dialog_title_add_rule">New spoof rule</string>
+    <string name="app_name">Nova Device Spoof</string>
+    <string name="subtitle">Paste a device profile once, then choose which apps see it. Nothing on the real device is changed.</string>
+
+    <string name="label_build_prop">build.prop profile (KEY=VALUE per line)</string>
+    <string name="hint_build_prop">ro.product.model=SM-S928B\nro.product.manufacturer=samsung\nro.build.version.release=15\nro.build.version.sdk=35</string>
+
+    <string name="label_floating_features">floating_feature.xml profile</string>
+    <string name="hint_floating_features">&lt;category name=\"SEC_FLOATING_FEATURE_COMMON_CONFIG_MODEL_NAME\"&gt;SM-S928B&lt;/category&gt;</string>
+
+    <string name="action_save_profile">Save profile</string>
+    <string name="profile_saved">Profile saved</string>
+
+    <string name="label_target_apps">Target apps</string>
+    <string name="no_target_apps">No apps selected yet. Choose which apps should see this profile.</string>
+    <string name="action_choose_apps">Choose apps</string>
+    <string name="dialog_title_choose_apps">Apps that should see this profile</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
-    <string name="error_invalid_cert">That doesn\'t look like a valid Base64 certificate.</string>
-    <string name="error_no_apps">No source app selected.</string>
+    <string name="error_no_apps">No installed apps found.</string>
+
+    <plurals name="target_apps_count">
+        <item quantity="one">%d app selected</item>
+        <item quantity="other">%d apps selected</item>
+    </plurals>
 </resources>

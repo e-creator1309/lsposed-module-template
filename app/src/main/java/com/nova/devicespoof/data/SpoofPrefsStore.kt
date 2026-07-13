@@ -1,4 +1,4 @@
-package com.nova.sigspoofing.data
+package com.nova.devicespoof.data
 
 import android.content.Context
 import android.util.Log
@@ -7,18 +7,42 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Persists spoof rules configured from the companion app so the LSPosed hook
- * (running as a different UID inside system_server) can read them via
- * [de.robv.android.xposed.XSharedPreferences].
+ * Persists the spoof profile (build.prop text + floating_features.xml text) and the list of
+ * target apps configured from the companion app, so the LSPosed hook -- running inside each
+ * target app's own process -- can read them via [de.robv.android.xposed.XSharedPreferences].
  *
- * Xposed's cross-process prefs read requires the prefs file, and every
- * directory leading to it, to be world-readable -- see [makeWorldReadable].
+ * Xposed's cross-process prefs read requires the prefs file, and every directory leading to
+ * it, to be world-readable -- see [makeWorldReadable].
  */
 object SpoofPrefsStore {
 
     const val PREFS_NAME = "spoof_config"
+    const val KEY_BUILD_PROP = "build_prop_text"
+    const val KEY_FLOATING_FEATURES = "floating_features_xml"
     const val KEY_RULES_JSON = "rules_json"
-    private const val TAG = "NovaSpoofPrefs"
+    private const val TAG = "NovaDeviceSpoofPrefs"
+
+    data class Profile(
+        val buildPropText: String,
+        val floatingFeaturesXml: String
+    )
+
+    fun loadProfile(context: Context): Profile {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return Profile(
+            buildPropText = prefs.getString(KEY_BUILD_PROP, "") ?: "",
+            floatingFeaturesXml = prefs.getString(KEY_FLOATING_FEATURES, "") ?: ""
+        )
+    }
+
+    fun saveProfile(context: Context, profile: Profile) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_BUILD_PROP, profile.buildPropText)
+            .putString(KEY_FLOATING_FEATURES, profile.floatingFeaturesXml)
+            .commit()
+        makeWorldReadable(context)
+    }
 
     fun loadRules(context: Context): MutableList<SpoofRule> {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -31,7 +55,6 @@ object SpoofPrefsStore {
                 rules.add(
                     SpoofRule(
                         packageName = obj.getString("packageName"),
-                        certBase64 = obj.getString("certBase64"),
                         enabled = obj.optBoolean("enabled", true),
                         label = obj.optString("label", obj.getString("packageName"))
                     )
@@ -49,7 +72,6 @@ object SpoofPrefsStore {
         for (rule in rules) {
             val obj = JSONObject()
             obj.put("packageName", rule.packageName)
-            obj.put("certBase64", rule.certBase64)
             obj.put("enabled", rule.enabled)
             obj.put("label", rule.label)
             array.put(obj)
@@ -65,7 +87,7 @@ object SpoofPrefsStore {
             val prefsDir = File(dataDir, "shared_prefs")
             val prefsFile = File(prefsDir, "$PREFS_NAME.xml")
 
-            // Directories need the executable bit for "others" so system_server
+            // Directories need the executable bit for "others" so the target app's process
             // can traverse into them; the file itself needs to be readable.
             dataDir.setExecutable(true, false)
             prefsDir.setExecutable(true, false)

@@ -2,12 +2,12 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
-    namespace 'com.nova.sigspoofing'
+    namespace 'com.nova.devicespoof'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.nova.sigspoofing"
-        minSdk 28          // Android 9 (P) — minimum for SigningInfo
+        applicationId "com.nova.devicespoof"
+        minSdk 28          // Android 9 (P)
         targetSdk 34
         versionCode 1
         versionName "1.0.0"

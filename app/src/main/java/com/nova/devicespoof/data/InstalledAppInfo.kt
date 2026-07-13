@@ -1,11 +1,10 @@
-package com.nova.sigspoofing.data
+package com.nova.devicespoof.data
 
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
-import android.util.Base64
 
-/** A launchable app discovered on the device, used to populate pickers in the UI. */
+/** A launchable app discovered on the device, used to populate the target-app picker. */
 data class InstalledAppInfo(
     val packageName: String,
     val label: String,
@@ -32,25 +31,5 @@ object InstalledAppsRepository {
                 )
             }
             .sortedBy { it.label.lowercase() }
-    }
-
-    /**
-     * Reads [packageName]'s real signing certificate straight from the system and
-     * returns it Base64-encoded, ready to be pasted into another app's spoof rule.
-     */
-    fun readRealCertificateBase64(pm: PackageManager, packageName: String): String? {
-        return try {
-            val pi = pm.getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-            val signingInfo = pi.signingInfo ?: return null
-            val signatures = if (signingInfo.hasMultipleSigners()) {
-                signingInfo.apkContentsSigners
-            } else {
-                signingInfo.signingCertificateHistory
-            }
-            val signature = signatures?.firstOrNull() ?: return null
-            Base64.encodeToString(signature.toByteArray(), Base64.NO_WRAP)
-        } catch (t: Throwable) {
-            null
-        }
     }
 }
