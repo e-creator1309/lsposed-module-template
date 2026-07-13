@@ -109,21 +109,35 @@ object SpoofPrefsStore {
     }
 
     private fun relaxSelinuxWithRoot(dataDir: File, prefsDir: File, prefsFile: File) {
+        Log.i(TAG, "relaxSelinuxWithRoot: requesting su to relabel ${prefsFile.absolutePath}")
         try {
+            // Echo the current context first (ls -Z) so failures are diagnosable from
+            // logcat alone -- without this we can never tell "su denied" apart from
+            // "su succeeded but chcon itself failed" apart from "never ran at all".
             val cmd = "chmod 711 '${dataDir.absolutePath}'; " +
                 "chmod 755 '${prefsDir.absolutePath}'; " +
                 "chmod 644 '${prefsFile.absolutePath}'; " +
-                "chcon u:object_r:app_data_file:s0 '${prefsDir.absolutePath}' 2>/dev/null; " +
-                "chcon u:object_r:app_data_file:s0 '${prefsFile.absolutePath}' 2>/dev/null"
+                "chcon u:object_r:app_data_file:s0 '${prefsDir.absolutePath}'; " +
+                "chcon u:object_r:app_data_file:s0 '${prefsFile.absolutePath}'; " +
+                "ls -Z '${prefsFile.absolutePath}'"
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
+            val stdout = process.inputStream.bufferedReader().readText().trim()
+            val stderr = process.errorStream.bufferedReader().readText().trim()
             val exitCode = process.waitFor()
-            if (exitCode != 0) {
-                Log.w(TAG, "Root permission/SELinux relabel exited $exitCode -- companion app may not be granted root")
+            if (exitCode == 0) {
+                Log.i(TAG, "relaxSelinuxWithRoot: su succeeded, exit=0, ls -Z output: $stdout")
+            } else {
+                Log.w(
+                    TAG,
+                    "relaxSelinuxWithRoot: su command exited $exitCode -- companion app may not " +
+                        "be granted root, or chcon was rejected by policy. stdout=[$stdout] stderr=[$stderr]"
+                )
             }
         } catch (t: Throwable) {
-            // No root binary, or root access wasn't granted to this app. The plain chmod
-            // above still applies; whether that's enough depends on the ROM's SELinux policy.
-            Log.w(TAG, "Could not run root command to relax SELinux label", t)
+            // No root binary, root access wasn't granted to this app, or su denied/timed out.
+            // The plain chmod above still applies; whether that's enough depends on the ROM's
+            // SELinux policy (on enforcing SELinux it typically is not).
+            Log.w(TAG, "relaxSelinuxWithRoot: could not run root command to relax SELinux label", t)
         }
     }
 }
