@@ -16,6 +16,7 @@
     <string name="no_target_apps">No apps selected yet. Choose which apps should see this profile.</string>
     <string name="action_choose_apps">Choose apps</string>
     <string name="dialog_title_choose_apps">Apps that should see this profile</string>
+    <string name="show_system_apps">Show system apps (no launcher icon)</string>
     <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
     <string name="error_no_apps">No installed apps found.</string>

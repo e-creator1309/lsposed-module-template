@@ -3,6 +3,7 @@ package com.nova.devicespoof.ui
 import android.app.AlertDialog
 import android.os.Bundle
 import android.view.View
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -70,26 +71,47 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showChooseAppsDialog() {
-        val installedApps = InstalledAppsRepository.listLaunchableApps(packageManager, packageName)
-        if (installedApps.isEmpty()) {
+        var launchableOnly = InstalledAppsRepository.listLaunchableApps(packageManager, packageName)
+        if (launchableOnly.isEmpty()) {
             Toast.makeText(this, R.string.error_no_apps, Toast.LENGTH_SHORT).show()
             return
         }
 
+        // Carry enabled state across a "show system apps" toggle, and across whatever was
+        // saved previously -- so switching the checkbox never silently drops a selection.
         val enabledByPackage = rules.filter { it.enabled }.map { it.packageName }.toMutableSet()
+        var currentApps = launchableOnly
 
         val dialogView = layoutInflater.inflate(R.layout.dialog_choose_apps, null)
+        val showSystemCheckbox = dialogView.findViewById<CheckBox>(R.id.showSystemAppsCheckbox)
         val list = dialogView.findViewById<RecyclerView>(R.id.chooseAppsList)
         list.layoutManager = LinearLayoutManager(this)
-        val chooseAdapter = TargetAppAdapter(installedApps, enabledByPackage)
+        var chooseAdapter = TargetAppAdapter(currentApps, enabledByPackage)
         list.adapter = chooseAdapter
+
+        showSystemCheckbox.setOnCheckedChangeListener { _, checked ->
+            currentApps = if (checked) {
+                // Includes apps with no launcher icon (system services, providers) --
+                // this is what you need if the app you want to spoof never shows up
+                // in the default list, e.g. a Samsung system component.
+                InstalledAppsRepository.listAllApps(packageManager, packageName)
+            } else {
+                launchableOnly
+            }
+            chooseAdapter = TargetAppAdapter(currentApps, enabledByPackage)
+            list.adapter = chooseAdapter
+        }
 
         AlertDialog.Builder(this)
             .setTitle(R.string.dialog_title_choose_apps)
             .setView(dialogView)
             .setPositiveButton(R.string.action_save) { _, _ ->
+                // Merge instead of replacing wholesale: a package enabled while the system-apps
+                // list was showing must stay enabled even though it's outside launchableOnly.
+                val previousRules = rules.associateBy { it.packageName }
                 rules.clear()
-                installedApps.forEach { app ->
+                val seen = mutableSetOf<String>()
+                currentApps.forEach { app ->
                     rules.add(
                         SpoofRule(
                             packageName = app.packageName,
@@ -97,6 +119,14 @@ class MainActivity : AppCompatActivity() {
                             label = app.label
                         )
                     )
+                    seen.add(app.packageName)
+                }
+                // Keep any previously-enabled package this session's list didn't include
+                // (e.g. it was picked from the system-apps view before toggling back off).
+                previousRules.values.forEach { rule ->
+                    if (rule.enabled && rule.packageName !in seen) {
+                        rules.add(rule)
+                    }
                 }
                 SpoofPrefsStore.saveRules(this, rules)
                 refreshTargetAppsSummary()

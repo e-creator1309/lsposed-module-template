@@ -22,14 +22,32 @@ object InstalledAppsRepository {
             .map { it.activityInfo.packageName }
             .distinct()
             .filter { it != excludePackage }
-            .map { pkg ->
-                val appInfo = pm.getApplicationInfo(pkg, 0)
-                InstalledAppInfo(
-                    packageName = pkg,
-                    label = pm.getApplicationLabel(appInfo).toString(),
-                    icon = try { pm.getApplicationIcon(pkg) } catch (t: Throwable) { null }
-                )
-            }
+            .map { pkg -> toAppInfo(pm, pkg) }
             .sortedBy { it.label.lowercase() }
+    }
+
+    /**
+     * Every installed app, including apps with no Home-screen icon (system services,
+     * providers, background components). Use this when the app you want to spoof --
+     * e.g. a Samsung system service or a provider-only package -- never shows up in the
+     * launcher list above. Slower and much longer than [listLaunchableApps], so it's only
+     * queried when the user explicitly asks to see system apps too.
+     */
+    fun listAllApps(pm: PackageManager, excludePackage: String? = null): List<InstalledAppInfo> {
+        return pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .map { it.packageName }
+            .distinct()
+            .filter { it != excludePackage }
+            .map { pkg -> toAppInfo(pm, pkg) }
+            .sortedBy { it.label.lowercase() }
+    }
+
+    private fun toAppInfo(pm: PackageManager, pkg: String): InstalledAppInfo {
+        val appInfo = pm.getApplicationInfo(pkg, 0)
+        return InstalledAppInfo(
+            packageName = pkg,
+            label = pm.getApplicationLabel(appInfo).toString(),
+            icon = try { pm.getApplicationIcon(pkg) } catch (t: Throwable) { null }
+        )
     }
 }
