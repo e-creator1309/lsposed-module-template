@@ -98,3 +98,18 @@ gradle assembleDebug
 ```
 adb logcat -s NovaDeviceSpoof
 ```
+
+## Compatibility notes (verified against a real Samsung Gallery build)
+
+The floating-feature hook targets were confirmed by decompiling an actual Samsung Gallery
+APK with `apktool` rather than guessed. Two real code paths exist and this module hooks
+both:
+
+- Modern OneUI devices: `com.samsung.android.feature.SemFloatingFeature`/`SemCscFeature`
+  singletons (`getInstance()`), with **instance** getters `getBoolean`/`getInt`/`getString`.
+- Fallback path (seen on GED/AOSP-leaning builds): `com.samsung.sesl.feature.SemFloatingFeature`/
+  `SemCscFeature` **static** `hidden_getString(key, default)` accessors.
+
+`android.os.Build` / `Build.VERSION` fields and `SystemProperties.get()` reads were also
+confirmed safe to override reflectively: real apps read these as plain field/method
+lookups (never inlined at compile time), so no recompilation trick is needed on their side.

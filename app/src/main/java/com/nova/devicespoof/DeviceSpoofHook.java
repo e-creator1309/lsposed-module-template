@@ -12,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -226,57 +225,119 @@ public class DeviceSpoofHook implements IXposedHookLoadPackage {
         }
     }
 
-    // ── 3. OEM floating-feature flags (Samsung/OneUI-style feature gating) ───
+    // ── 3. OEM floating-feature / CSC flags (Samsung/OneUI-style feature gating) ─
+    //
+    // Verified 2026-07 by decompiling a real Samsung Gallery build (apktool) rather than
+    // guessing: the app never calls static getString()/getInteger() directly on a
+    // "FloatingFeatureImpl" class. Two real code paths exist, and we hook both so this
+    // works whether the ROM has the full Samsung framework or not:
+    //
+    //  A. Modern OneUI devices (Sem80ApiCompatImpl-style path):
+    //     com.samsung.android.feature.SemFloatingFeature.getInstance() returns a
+    //     singleton; callers then use INSTANCE methods getBoolean(String)/getInt(String)/
+    //     getString(String). com.samsung.android.feature.SemCscFeature works the same way
+    //     but its getters take a default value: getBoolean(String,boolean)/getString(String,String).
+    //     We hook the instance methods directly -- Xposed intercepts every call regardless
+    //     of which object instance made it, so we don't need to touch getInstance().
+    //
+    //  B. Fallback path used when (A) throws/isn't available (Sesl reflector path, seen on
+    //     GED/AOSP-leaning builds): com.samsung.sesl.feature.SemFloatingFeature /
+    //     com.samsung.sesl.feature.SemCscFeature expose STATIC hidden_getString(key, default)
+    //     methods (the "hidden_" prefix is Samsung's own naming convention for the reflective
+    //     accessor, not something we need to strip).
+    //
+    // A missing class/method on a given ROM is expected and silently skipped -- not every
+    // device is Samsung/OneUI, and not every OneUI version has both paths.
 
     static void hookFloatingFeatures(ClassLoader cl, Map<String, String> features) {
-        // Different OneUI versions expose this under slightly different class names.
-        // Try each; a missing class on a given ROM is expected and silently skipped.
-        String[] candidates = {
-                "com.samsung.android.feature.FloatingFeatureImpl",
-                "com.samsung.android.feature.SemFloatingFeature",
-                "com.samsung.android.feature.SemCscFeature"
-        };
-        for (String className : candidates) {
-            try {
-                Class<?> cls = XposedHelpers.findClass(className, cl);
-                hookFeatureGetter(cls, "getString", features, String.class);
-                hookFeatureGetter(cls, "getInteger", features, String.class);
-                hookFeatureGetter(cls, "getEnableStatus", features, String.class);
-                XposedBridge.log(TAG + ": floating-feature hooks attached on " + className);
-            } catch (Throwable ignored) {
-                // Class not present on this ROM -- normal, not every device is Samsung/OneUI.
-            }
+        // Path A: instance-based Sem*Feature singletons.
+        hookInstanceFeatureGetter(cl, "com.samsung.android.feature.SemFloatingFeature",
+                "getBoolean", features, boolean.class, String.class);
+        hookInstanceFeatureGetter(cl, "com.samsung.android.feature.SemFloatingFeature",
+                "getInt", features, int.class, String.class);
+        hookInstanceFeatureGetter(cl, "com.samsung.android.feature.SemFloatingFeature",
+                "getString", features, String.class, String.class);
+
+        hookInstanceFeatureGetter(cl, "com.samsung.android.feature.SemCscFeature",
+                "getBoolean", features, boolean.class, String.class, boolean.class);
+        hookInstanceFeatureGetter(cl, "com.samsung.android.feature.SemCscFeature",
+                "getString", features, String.class, String.class, String.class);
+
+        // Path B: static Sesl reflector-backed fallback, always takes (key, default).
+        hookStaticHiddenGetter(cl, "com.samsung.sesl.feature.SemFloatingFeature",
+                "hidden_getString", features, String.class, String.class, String.class);
+        hookStaticHiddenGetter(cl, "com.samsung.sesl.feature.SemCscFeature",
+                "hidden_getString", features, String.class, String.class, String.class);
+    }
+
+    /** Hooks an instance getter like SemFloatingFeature#getString(String) / #getBoolean(String, boolean). */
+    static void hookInstanceFeatureGetter(ClassLoader cl, String className, String methodName,
+                                           Map<String, String> features, Class<?> returnType, Class<?>... paramTypes) {
+        try {
+            Class<?> cls = XposedHelpers.findClass(className, cl);
+            Method m = cls.getMethod(methodName, paramTypes);
+            XposedBridge.hookMethod(m, featureHook(features, returnType));
+            XposedBridge.log(TAG + ": hooked " + className + "#" + methodName + paramTypeSuffix(paramTypes));
+        } catch (Throwable ignored) {
+            // Class or this getter overload not present on this ROM/OneUI version.
         }
     }
 
-    static void hookFeatureGetter(Class<?> cls, String methodName, Map<String, String> features, Class<?>... paramTypes) {
+    /** Hooks a static "hidden_getX(key, default)" getter, as used by the Sesl reflector fallback path. */
+    static void hookStaticHiddenGetter(ClassLoader cl, String className, String methodName,
+                                        Map<String, String> features, Class<?> returnType, Class<?>... paramTypes) {
         try {
+            Class<?> cls = XposedHelpers.findClass(className, cl);
             Method m = cls.getMethod(methodName, paramTypes);
-            XposedBridge.hookMethod(m, new XC_MethodHook() {
-                @Override
-                protected void beforeHookedMethod(MethodHookParam param) {
-                    if (param.args.length == 0 || !(param.args[0] instanceof String)) return;
-                    String key = (String) param.args[0];
-                    String spoofed = features.get(key);
-                    if (spoofed == null) return;
+            XposedBridge.hookMethod(m, featureHook(features, returnType));
+            XposedBridge.log(TAG + ": hooked " + className + "#" + methodName + paramTypeSuffix(paramTypes));
+        } catch (Throwable ignored) {
+            // Not present on this ROM -- expected on non-Samsung or newer/older OneUI builds.
+        }
+    }
 
-                    Class<?> returnType = m.getReturnType();
-                    try {
-                        if (returnType == int.class || returnType == Integer.class) {
-                            param.setResult(Integer.parseInt(spoofed.trim()));
-                        } else if (returnType == boolean.class || returnType == Boolean.class) {
-                            param.setResult(Boolean.parseBoolean(spoofed.trim()) || "1".equals(spoofed.trim()));
-                        } else {
-                            param.setResult(spoofed);
-                        }
-                    } catch (NumberFormatException ignored) {
-                        // Spoofed value didn't parse as the expected numeric type -- leave the
-                        // real call result in place rather than crash the target app.
+    private static String paramTypeSuffix(Class<?>[] paramTypes) {
+        StringBuilder sb = new StringBuilder("(");
+        for (int i = 0; i < paramTypes.length; i++) {
+            if (i > 0) sb.append(",");
+            sb.append(paramTypes[i].getSimpleName());
+        }
+        return sb.append(")").toString();
+    }
+
+    /**
+     * The key (first String argument) is always the feature name being looked up; every
+     * variant above -- instance or static, with or without a default-value argument --
+     * follows that convention, so one hook body covers all of them.
+     */
+    private static XC_MethodHook featureHook(Map<String, String> features, Class<?> returnType) {
+        return new XC_MethodHook() {
+            @Override
+            protected void beforeHookedMethod(MethodHookParam param) {
+                String key = null;
+                for (Object arg : param.args) {
+                    if (arg instanceof String) {
+                        key = (String) arg;
+                        break;
                     }
                 }
-            });
-        } catch (NoSuchMethodException ignored) {
-            // This particular getter overload doesn't exist on this ROM's implementation.
-        }
+                if (key == null) return;
+                String spoofed = features.get(key);
+                if (spoofed == null) return; // not in our profile -- let the real value pass through
+
+                try {
+                    if (returnType == int.class || returnType == Integer.class) {
+                        param.setResult(Integer.parseInt(spoofed.trim()));
+                    } else if (returnType == boolean.class || returnType == Boolean.class) {
+                        param.setResult(Boolean.parseBoolean(spoofed.trim()) || "1".equals(spoofed.trim()));
+                    } else {
+                        param.setResult(spoofed);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Spoofed value didn't parse as the expected numeric type -- leave the
+                    // real call result in place rather than crash the target app.
+                }
+            }
+        };
     }
 }
