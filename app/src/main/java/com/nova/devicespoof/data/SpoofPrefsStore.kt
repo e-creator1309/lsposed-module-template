@@ -2,6 +2,7 @@ package com.nova.devicespoof.data
 
 import android.content.Context
 import android.util.Log
+import de.robv.android.xposed.XposedBridge
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -21,6 +22,25 @@ object SpoofPrefsStore {
     const val KEY_FLOATING_FEATURES = "floating_features_xml"
     const val KEY_RULES_JSON = "rules_json"
     private const val TAG = "NovaDeviceSpoofPrefs"
+
+    // LSPosed Manager's own "Logs" screen only shows lines written via XposedBridge.log --
+    // plain android.util.Log calls from this file (running as normal companion-app code, not
+    // from inside a hook callback) never show up there, even though they're visible via
+    // `adb logcat`. Since the user only has the LSPosed Manager UI (no computer/adb), every
+    // diagnostic line here must also go through XposedBridge.log or it is effectively invisible.
+    private fun bridgeLog(message: String, throwable: Throwable? = null) {
+        if (throwable != null) {
+            Log.w(TAG, message, throwable)
+        } else {
+            Log.i(TAG, message)
+        }
+        try {
+            XposedBridge.log("$TAG: $message" + (throwable?.let { " -- $it" } ?: ""))
+        } catch (t: Throwable) {
+            // XposedBridge classes aren't backed by a real implementation in this process
+            // (module not scoped/loaded here) -- nothing more we can do to surface this line.
+        }
+    }
 
     data class Profile(
         val buildPropText: String,
@@ -94,7 +114,7 @@ object SpoofPrefsStore {
             prefsDir.setReadable(true, false)
             prefsFile.setReadable(true, false)
         } catch (t: Throwable) {
-            Log.w(TAG, "Failed to relax prefs file permissions", t)
+            bridgeLog("Failed to relax prefs file permissions", t)
         }
 
         // On stock/enforcing SELinux (every Samsung/OneUI device), the chmod above only
@@ -109,7 +129,7 @@ object SpoofPrefsStore {
     }
 
     private fun relaxSelinuxWithRoot(dataDir: File, prefsDir: File, prefsFile: File) {
-        Log.i(TAG, "relaxSelinuxWithRoot: requesting su to relabel ${prefsFile.absolutePath}")
+        bridgeLog("relaxSelinuxWithRoot: requesting su to relabel ${prefsFile.absolutePath}")
         try {
             // Echo the current context first (ls -Z) so failures are diagnosable from
             // logcat alone -- without this we can never tell "su denied" apart from
@@ -125,10 +145,9 @@ object SpoofPrefsStore {
             val stderr = process.errorStream.bufferedReader().readText().trim()
             val exitCode = process.waitFor()
             if (exitCode == 0) {
-                Log.i(TAG, "relaxSelinuxWithRoot: su succeeded, exit=0, ls -Z output: $stdout")
+                bridgeLog("relaxSelinuxWithRoot: su succeeded, exit=0, ls -Z output: $stdout")
             } else {
-                Log.w(
-                    TAG,
+                bridgeLog(
                     "relaxSelinuxWithRoot: su command exited $exitCode -- companion app may not " +
                         "be granted root, or chcon was rejected by policy. stdout=[$stdout] stderr=[$stderr]"
                 )
@@ -137,7 +156,7 @@ object SpoofPrefsStore {
             // No root binary, root access wasn't granted to this app, or su denied/timed out.
             // The plain chmod above still applies; whether that's enough depends on the ROM's
             // SELinux policy (on enforcing SELinux it typically is not).
-            Log.w(TAG, "relaxSelinuxWithRoot: could not run root command to relax SELinux label", t)
+            bridgeLog("relaxSelinuxWithRoot: could not run root command to relax SELinux label", t)
         }
     }
 }
