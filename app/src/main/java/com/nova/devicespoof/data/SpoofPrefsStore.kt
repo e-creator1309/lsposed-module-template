@@ -128,8 +128,18 @@ object SpoofPrefsStore {
         relaxSelinuxWithRoot(dataDir, prefsDir, prefsFile)
     }
 
+    // Reference implementations of this exact companion-app-config pattern (e.g. the
+    // published "SpoofMyDevice" LSPosed module) don't rely on XSharedPreferences alone --
+    // they mirror the config to a neutral, world-readable path outside either app's private
+    // data directory. /data/local/tmp is labeled a shared SELinux category (not the
+    // per-app "app_data_file" category our own shared_prefs file has), so every app process
+    // can read a file there regardless of UID, with no per-app chcon/category matching
+    // needed. This sidesteps the chcon approach above entirely if it turns out the ROM's
+    // policy rejects relabeling app_data_file even from a root shell.
+    private const val ROOT_MIRROR_PATH = "/data/local/tmp/nova_device_spoof_prefs.xml"
+
     private fun relaxSelinuxWithRoot(dataDir: File, prefsDir: File, prefsFile: File) {
-        bridgeLog("relaxSelinuxWithRoot: requesting su to relabel ${prefsFile.absolutePath}")
+        bridgeLog("relaxSelinuxWithRoot: requesting su to relabel ${prefsFile.absolutePath} and mirror to $ROOT_MIRROR_PATH")
         try {
             // Echo the current context first (ls -Z) so failures are diagnosable from
             // logcat alone -- without this we can never tell "su denied" apart from
@@ -139,7 +149,9 @@ object SpoofPrefsStore {
                 "chmod 644 '${prefsFile.absolutePath}'; " +
                 "chcon u:object_r:app_data_file:s0 '${prefsDir.absolutePath}'; " +
                 "chcon u:object_r:app_data_file:s0 '${prefsFile.absolutePath}'; " +
-                "ls -Z '${prefsFile.absolutePath}'"
+                "cp '${prefsFile.absolutePath}' '$ROOT_MIRROR_PATH'; " +
+                "chmod 644 '$ROOT_MIRROR_PATH'; " +
+                "ls -Z '${prefsFile.absolutePath}' '$ROOT_MIRROR_PATH'"
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
             val stdout = process.inputStream.bufferedReader().readText().trim()
             val stderr = process.errorStream.bufferedReader().readText().trim()

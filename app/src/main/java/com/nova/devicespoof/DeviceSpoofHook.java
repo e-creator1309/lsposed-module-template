@@ -47,7 +47,18 @@ public class DeviceSpoofHook implements IXposedHookLoadPackage {
     static final String COMPANION_PKG = "com.nova.devicespoof";
     static final String COMPANION_PREFS = "spoof_config";
 
+    // On enforcing SELinux (every Samsung/OneUI device), the companion app's shared_prefs
+    // file lives under its own "app_data_file" category, which the target app's process is
+    // denied from opening directly even when Unix permissions are wide open -- this is why
+    // XSharedPreferences(COMPANION_PKG, COMPANION_PREFS) alone reliably reads back null on
+    // these devices. SpoofPrefsStore additionally root-copies the same prefs file out to
+    // this neutral, non-app-owned path after every save; reading from here instead sidesteps
+    // the per-app SELinux category check entirely. Fall back to the direct path only if the
+    // mirror hasn't been created yet (e.g. companion app was never granted root).
+    static final String ROOT_MIRROR_PATH = "/data/local/tmp/nova_device_spoof_prefs.xml";
+
     static volatile XSharedPreferences sPrefs;
+    static volatile java.io.File sPrefsSource;
 
     /** Package name → true/false, cached so we only parse prefs once per process. */
     static final ConcurrentHashMap<String, Boolean> sEnabledCache = new ConcurrentHashMap<>();
@@ -85,14 +96,29 @@ public class DeviceSpoofHook implements IXposedHookLoadPackage {
     // ── Companion config access ──────────────────────────────────────────────
 
     static XSharedPreferences companionPrefs() {
+        java.io.File mirrorFile = new java.io.File(ROOT_MIRROR_PATH);
+        boolean mirrorReadable = mirrorFile.exists() && mirrorFile.canRead();
+        java.io.File wantedSource = mirrorReadable ? mirrorFile : null; // null == direct COMPANION_PKG path
+
         XSharedPreferences prefs = sPrefs;
-        if (prefs == null) {
+        boolean sourceMismatch = !java.util.Objects.equals(sPrefsSource, wantedSource);
+        if (prefs == null || sourceMismatch) {
             synchronized (DeviceSpoofHook.class) {
-                prefs = sPrefs;
-                if (prefs == null) {
-                    prefs = new XSharedPreferences(COMPANION_PKG, COMPANION_PREFS);
+                if (sPrefs == null || !java.util.Objects.equals(sPrefsSource, wantedSource)) {
+                    if (mirrorReadable) {
+                        XposedBridge.log(TAG + ": reading companion config from root-mirrored file " + ROOT_MIRROR_PATH);
+                        prefs = new XSharedPreferences(mirrorFile);
+                    } else {
+                        XposedBridge.log(TAG + ": root mirror unavailable at " + ROOT_MIRROR_PATH
+                                + " (exists=" + mirrorFile.exists() + ", canRead=" + mirrorFile.canRead()
+                                + ") -- falling back to direct XSharedPreferences(" + COMPANION_PKG + ", " + COMPANION_PREFS + ")");
+                        prefs = new XSharedPreferences(COMPANION_PKG, COMPANION_PREFS);
+                    }
                     sPrefs = prefs;
+                    sPrefsSource = wantedSource;
+                    sEnabledCache.clear();
                 }
+                prefs = sPrefs;
             }
         }
         if (prefs.hasFileChanged()) {
